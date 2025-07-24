@@ -1,1 +1,152 @@
 
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='UTF-8'>
+  <title>📦 Parcel Locker Finder — Budapest</title>
+  <link rel='stylesheet' href='https://unpkg.com/leaflet/dist/leaflet.css'/>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      background: #f9f9f9;
+      color: #333;
+    }
+    header {
+      background: #0077cc;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.4rem;
+      font-weight: bold;
+    }
+    .control {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 1rem;
+      background: #ffffff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .control input {
+      flex: 1;
+      padding: 0.6rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .control button {
+      background: #0077cc;
+      color: white;
+      border: none;
+      padding: 0.6rem 1rem;
+      font-size: 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .control button:hover {
+      background: #005fa3;
+    }
+    #map {
+      height: 50vh;
+    }
+    .list {
+      padding: 1rem;
+      background: #ffffff;
+    }
+    .locker {
+      background: #f1f8ff;
+      border-left: 5px solid #0077cc;
+      margin-bottom: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .locker strong {
+      color: #0077cc;
+    }
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.9rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <header>📍 Find Nearby Parcel Lockers in Budapest</header>
+  <div class='control'>
+    <input id='address' placeholder='Enter your address (e.g., Blaha Lujza tér)'/>
+    <button onclick='search()'>Search</button>
+    <button onclick='useMyLocation()'>📍 Use My Location</button>
+  </div>
+  <div id='map'></div>
+  <div class='list' id='list'></div>
+  <footer>🚚 Powered by OpenStreetMap & Leaflet | Prices for demo purposes only</footer>
+
+  <script src='https://unpkg.com/leaflet/dist/leaflet.js'></script>
+  <script>
+    const lockers = [
+      {name:'FoxPost – Europeum', provider:'FoxPost', lat:47.4975, lon:19.0626},
+      {name:'FoxPost – Lurdy Ház', provider:'FoxPost', lat:47.48, lon:19.082},
+      {name:'GLS – ParcelLocker', provider:'GLS', lat:47.503, lon:19.05},
+      {name:'DHL – Corvin Plaza', provider:'DHL', lat:47.497, lon:19.045}
+    ];
+    const prices = {
+      'FoxPost': {S:799, M:999, L:1299},
+      'GLS': {S:850, M:1100, L:1350},
+      'DHL': {S:900, M:1150, L:1400}
+    };
+    const colors = {'FoxPost':'orange','GLS':'green','DHL':'blue'};
+
+    let map = L.map('map').setView([47.4979,19.0402],12);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    function distance(lat1,lon1,lat2,lon2){
+      const R=6371;
+      const dLat=(lat2-lat1)*Math.PI/180;
+      const dLon=(lon2-lon1)*Math.PI/180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+      const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R*c;
+    }
+
+    function searchAt(lat,lon){
+      document.getElementById('list').innerHTML='';
+      map.eachLayer(layer => (layer instanceof L.Marker || layer instanceof L.CircleMarker) && map.removeLayer(layer));
+      lockers.forEach(l=>{
+        const d = distance(lat,lon,l.lat,l.lon);
+        if(d<5){
+          const marker = L.circleMarker([l.lat,l.lon], {
+            color: colors[l.provider],
+            radius: 8,
+            fillOpacity: 0.6
+          }).addTo(map);
+          marker.bindPopup(`${l.name} (${l.provider})`);
+          const div = document.createElement('div');
+          div.className='locker';
+          div.innerHTML = `<strong>${l.name}</strong> (${l.provider})<br>
+            📍 ~${d.toFixed(1)} km away<br>
+            💸 Prices: S ${prices[l.provider].S} HUF, M ${prices[l.provider].M} HUF, L ${prices[l.provider].L} HUF`;
+          document.getElementById('list').append(div);
+        }
+      });
+      map.setView([lat,lon],13);
+    }
+
+    function useMyLocation(){
+      navigator.geolocation.getCurrentPosition(pos=>{
+        searchAt(pos.coords.latitude,pos.coords.longitude);
+      });
+    }
+
+    async function search(){
+      const addr = document.getElementById('address').value;
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`);
+      const data = await resp.json();
+      if(data[0]) searchAt(parseFloat(data[0].lat), parseFloat(data[0].lon));
+      else alert('Address not found');
+    }
+  </script>
+</body>
+</html>
